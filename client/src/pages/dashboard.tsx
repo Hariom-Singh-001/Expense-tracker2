@@ -101,16 +101,8 @@ const Dashboard = () => {
     };
   });
 
-  // Mock AI handler (kept for UI purposes)
-  const handleAskGemini = () => {
-    if (!question.trim()) return;
-    setIsThinking(true);
-    setAnswer(null);
-    setTimeout(() => {
-      setIsThinking(false);
-      setAnswer(`Based on your data, you spent $${totalExpenses} recently. Try cutting down on high-value items.`);
-    }, 2000);
-  };
+  
+  
 
   if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /></div>;
 
