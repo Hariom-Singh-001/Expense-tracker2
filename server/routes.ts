@@ -8,7 +8,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 1. Setup Authentication routes first
   setupAuth(app);
 
-  // 2. GET: List all expenses (This was working)
+  // 2. GET: List all expenses
   app.get("/api/expenses", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
@@ -18,7 +18,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(expenses);
   });
 
-  // 3. POST: Save a new expense (This was MISSING or Broken)
+  // 3. POST: Save a new expense
   app.post("/api/expenses", async (req, res) => {
     // A. Check if user is logged in
     if (!req.isAuthenticated()) return res.sendStatus(401);
