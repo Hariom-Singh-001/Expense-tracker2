@@ -48,25 +48,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 }
   */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai"; // New unified library
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// Gemini 3 Flash is best for fast, cheap categorization
-const model = genAI.getGenerativeModel({ model: "gemini-3-flash" });
+// The new SDK picks up GEMINI_API_KEY from .env automatically
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function processTransaction(rawText: string) {
   const prompt = `
     Analyze this text: "${rawText}".
-    Identify the following:
-    1. Amount (as a number)
-    2. Category (one of: Food, Transport, Rent, Shopping, Entertainment)
-    3. Merchant Name
-    
-    Return ONLY a JSON object:
-    {"amount": 0, "category": "", "merchant": "", "date": "YYYY-MM-DD"}
+    Identify: Amount (number), Category (Food, Transport, Rent, Shopping, Entertainment), Merchant Name.
+    Return ONLY a JSON object: {"amount": 0, "category": "", "merchant": "", "date": "YYYY-MM-DD"}
   `;
 
-  const result = await model.generateContent(prompt);
-  // Using JSON.parse ensures the data is ready for your database
+  // New syntax: Access models directly through the client
+  const result = await ai.models.generateContent({
+    model: "gemini-3-flash", // Use 3 Flash for fast utility tasks
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    config: { responseMimeType: "application/json" } // Ensures valid JSON
+  });
+
   return JSON.parse(result.response.text());
 }
