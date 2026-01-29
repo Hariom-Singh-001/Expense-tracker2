@@ -1,33 +1,32 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { GoogleGenAI } from "@google/genai"; // Standard 2026 Unified SDK
+import { GoogleGenAI } from "@google/genai"; // New unified 2026 SDK
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 
-// FIX: Satisfy TypeScript by providing a fallback empty string
+// FIX: Satisfy TypeScript with a fallback string
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
-// FIX: Teach TypeScript that our User has an 'id'
+// FIX: Extend User type so TS recognizes 'req.user.id'
 declare global {
   namespace Express {
-    interface User {
-      id: number;
-      username: string;
-    }
+    interface User { id: number; username: string; }
   }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // 1. Setup Authentication
-  setupAuth(app);
+  setupAuth(app); // Restores your login logic
 
-  // 2. AI Processing Route
+  // AI ROUTE: This is what your "Ask Gemini" button talks to
   app.post("/api/ai/process", async (req, res) => {
     try {
       const { text } = req.body;
       const result = await ai.models.generateContent({
-        model: "gemini-3-flash", // Fast & Free for utility tasks
-        contents: [{ role: "user", parts: [{ text: `Analyze: "${text}". Return ONLY JSON: {"amount": number, "category": "string", "merchant": "string"}` }] }],
+        model: "gemini-3-flash-preview", // CORRECT 2026 MODEL ID
+        contents: [{ role: "user", parts: [{ text: `
+          Analyze: "${text}". 
+          Return ONLY JSON: {"amount": number, "category": "string", "merchant": "string"}
+        `}]}],
         config: { responseMimeType: "application/json" }
       });
 
@@ -35,11 +34,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(JSON.parse(result.text)); 
     } catch (error) {
       console.error("AI Error:", error);
-      res.status(500).json({ error: "AI failed to process" });
+      res.status(500).json({ error: "AI processing failed" });
     }
   });
 
-  // 3. Keep your existing Expense database routes
+  // Your existing database route
   app.get("/api/expenses", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const expenses = await storage.getExpenses(req.user!.id);

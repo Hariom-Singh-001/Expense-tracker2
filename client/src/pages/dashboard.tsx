@@ -34,23 +34,28 @@ const Dashboard = () => {
   const [isThinking, setIsThinking] = useState(false);
   const { toast } = useToast();
 
-  const handleAskGemini = async () => {
-    if (!question.trim()) return;
-    setIsThinking(true);
-    try {
-      const res = await fetch("/api/ai/process", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: question }),
-      });
-      const data = await res.json();
-      setAnswer(`Identified: ₹${data.amount} for ${data.merchant} (${data.category})`);
-    } catch (err) {
-      toast({ title: "Error", description: "AI failed", variant: "destructive" });
-    } finally {
-      setIsThinking(false);
-    }
-  };
+  const handleAskGemini = async () => { //added new
+  if (!question.trim()) return;
+  setIsThinking(true);
+  try {
+    const res = await fetch("/api/ai/process", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: question }),
+    });
+
+    const data = await res.json();
+    
+    // ENSURE THESE KEYS MATCH THE AI PROMPT: amount, merchant, category
+    setAnswer(`Found: ₹${data.amount} for ${data.merchant} (${data.category})`);
+    
+  } catch (err) {
+    setAnswer("Sorry, I couldn't process that expense.");
+  } finally {
+    setIsThinking(false);
+  }
+};
+
 
 
   // --- 1. FETCH REAL DATA ---
