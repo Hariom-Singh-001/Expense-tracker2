@@ -27,10 +27,30 @@ import { cn } from "@/lib/utils";
 const Dashboard = () => {
   const { user, logoutMutation } = useAuth();
   const [isAskOpen, setIsAskOpen] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false); // State for Add Transaction modal
+
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
+  const { toast } = useToast();
+
+  const handleAskGemini = async () => {
+    if (!question.trim()) return;
+    setIsThinking(true);
+    try {
+      const res = await fetch("/api/ai/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: question }),
+      });
+      const data = await res.json();
+      setAnswer(`Identified: ₹${data.amount} for ${data.merchant} (${data.category})`);
+    } catch (err) {
+      toast({ title: "Error", description: "AI failed", variant: "destructive" });
+    } finally {
+      setIsThinking(false);
+    }
+  };
+
 
   // --- 1. FETCH REAL DATA ---
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
@@ -271,21 +291,34 @@ const Dashboard = () => {
 
       {/* ASK GEMINI DIALOG (UI Only) */}
       <Dialog open={isAskOpen} onOpenChange={setIsAskOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Ask Gemini</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Textarea placeholder="How is my budget?" value={question} onChange={(e) => setQuestion(e.target.value)} />
-            <AnimatePresence>
-              {answer && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-primary/5 p-3 rounded-lg text-sm">{answer}</motion.div>}
-            </AnimatePresence>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleAskGemini} disabled={isThinking}>{isThinking ? "Thinking..." : "Ask"}</Button>
-          </DialogFooter>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <Textarea 
+              placeholder="How is my budget?"
+              value={question} 
+              onChange={(e) => setQuestion(e.target.value)} 
+              />
+              
+              {/* This AnimatePresence makes the AI answer appear smoothly */}
+              <AnimatePresence>
+                {answer && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-primary/5 p-3 rounded-lg text-sm">
+                    {answer}
+                    </motion.div>
+                  )}
+              </AnimatePresence>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleAskGemini} disabled={isThinking}>
+                {isThinking ? "Thinking..." : "Ask"}
+              </Button>
+            </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };
