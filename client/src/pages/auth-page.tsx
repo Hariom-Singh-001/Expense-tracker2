@@ -9,11 +9,44 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// --- FIREBASE IMPORTS ---
+import { signInWithPopup } from "firebase/auth";
+import { auth, googleProvider } from "@/lib/firebase"; 
+
 export default function AuthPage() {
-  const { user, loginMutation, registerMutation } = useAuth();
+  const { user } = useAuth(); // Removed mutations as we are using custom fetch for Google
+  const { loginMutation, registerMutation } = useAuth();
   const [, setLocation] = useLocation();
 
-  // If the user is already logged in, kick them to the dashboard immediately
+  // --- UPDATED GOOGLE LOGIN HANDLER ---
+  const handleGoogleLogin = async () => {
+    try {
+      // 1. Open the Google Sign-in popup
+      const result = await signInWithPopup(auth, googleProvider);
+      
+      // 2. Retrieve the ID Token from the Firebase User
+      const token = await result.user.getIdToken(); 
+      
+      // 3. Send the token to your Express backend
+      const response = await fetch("/api/login/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+
+      if (response.ok) {
+        // 4. Success! Redirect to dashboard
+        // Using window.location.href ensures the auth state is fully refreshed
+        window.location.href = "/"; 
+      } else {
+        const errorMsg = await response.text();
+        console.error("Backend login failed:", errorMsg);
+      }
+    } catch (error: any) {
+      console.error("Google Sign-In Error:", error.message);
+    }
+  };
+
   if (user) {
     setLocation("/");
     return null;
@@ -21,7 +54,6 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
-      {/* LEFT SIDE: The Login Form */}
       <div className="flex items-center justify-center p-8">
         <Card className="w-full max-w-md">
           <CardHeader>
@@ -34,12 +66,35 @@ export default function AuthPage() {
                 <TabsTrigger value="register">Register</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="login">
+              <TabsContent value="login" className="space-y-4">
                 <AuthForm 
                   mode="login" 
                   onSubmit={(data) => loginMutation.mutate(data)} 
                   isPending={loginMutation.isPending}
                 />
+                
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                  </div>
+                </div>
+
+                <Button 
+                  variant="outline" 
+                  type="button" 
+                  className="w-full" 
+                  onClick={handleGoogleLogin}
+                >
+                  <img 
+                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
+                    className="w-4 h-4 mr-2" 
+                    alt="Google" 
+                  />
+                  Login with Google
+                </Button>
               </TabsContent>
 
               <TabsContent value="register">
@@ -54,7 +109,6 @@ export default function AuthPage() {
         </Card>
       </div>
 
-      {/* RIGHT SIDE: The Hero Image/Text */}
       <div className="hidden md:flex flex-col justify-center p-8 bg-zinc-900 text-white">
         <div className="max-w-md mx-auto">
           <h1 className="text-4xl font-bold mb-4">Expense Tracker</h1>
@@ -67,7 +121,6 @@ export default function AuthPage() {
   );
 }
 
-// This is a helper component to avoid repeating the form code twice
 function AuthForm({ mode, onSubmit, isPending }: { mode: "login" | "register", onSubmit: (data: any) => void, isPending: boolean }) {
   const form = useForm({
     resolver: zodResolver(insertUserSchema),
