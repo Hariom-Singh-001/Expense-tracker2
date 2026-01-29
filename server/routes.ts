@@ -1,4 +1,4 @@
-import type { Express } from "express";
+/*import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
@@ -45,4 +45,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+  */
+
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Gemini 3 Flash is best for fast, cheap categorization
+const model = genAI.getGenerativeModel({ model: "gemini-3-flash" });
+
+export async function processTransaction(rawText: string) {
+  const prompt = `
+    Analyze this text: "${rawText}".
+    Identify the following:
+    1. Amount (as a number)
+    2. Category (one of: Food, Transport, Rent, Shopping, Entertainment)
+    3. Merchant Name
+    
+    Return ONLY a JSON object:
+    {"amount": 0, "category": "", "merchant": "", "date": "YYYY-MM-DD"}
+  `;
+
+  const result = await model.generateContent(prompt);
+  // Using JSON.parse ensures the data is ready for your database
+  return JSON.parse(result.response.text());
 }
