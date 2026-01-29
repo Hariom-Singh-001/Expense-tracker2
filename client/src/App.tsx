@@ -4,15 +4,24 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
-import Dashboard from "@/pages/dashboard"; // <--- Import the new file
+import Dashboard from "@/pages/dashboard";
+import About from "@/pages/about"; // <--- This import is crucial
 import { AuthProvider } from "@/hooks/use-auth";
-import { ProtectedRoute } from "./lib/protected-route"; // We will create this helper next!
+import { ProtectedRoute } from "./lib/protected-route";
 
 function Router() {
   return (
     <Switch>
+      {/* 1. Main Dashboard */}
       <ProtectedRoute path="/" component={Dashboard} />
+      
+      {/* 2. The About Page (This was missing!) */}
+      <Route path="/about" component={About} />
+      
+      {/* 3. Login/Register */}
       <Route path="/auth" component={AuthPage} />
+      
+      {/* 4. Catch-all for errors */}
       <Route component={NotFound} />
     </Switch>
   );
