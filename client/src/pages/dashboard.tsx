@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 const Dashboard = () => {
   const { user, logoutMutation } = useAuth();
   const [isAskOpen, setIsAskOpen] = useState(false);
-
+  const [isAddOpen, setIsAddOpen] = useState(false); // Add this line!
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
