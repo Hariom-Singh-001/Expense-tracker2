@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Fixed import
+import { apiRequest } from "@/lib/queryClient";
 import { Expense, InsertExpense, insertExpenseSchema } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, TrendingDown, DollarSign, Sparkles, CreditCard, Loader2, LogOut, Send } from "lucide-react";
+import { Plus, TrendingDown, DollarSign, Sparkles, CreditCard, Loader2, LogOut } from "lucide-react";
 
 // Charts & Animation
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -23,6 +23,8 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const Dashboard = () => {
   const { user, logoutMutation } = useAuth();
+  const queryClient = useQueryClient(); // The missing link for auto-refresh
+  
   const [isAskOpen, setIsAskOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [question, setQuestion] = useState("");
@@ -38,8 +40,7 @@ const Dashboard = () => {
     },
   });
 
-  // --- 2. STABLE SORTING (Newest First) ---
-  // This ensures the transaction you just added jumps to the top
+  // --- 2. SORTING (Newest First) ---
   const expenses = useMemo(() => {
     return [...rawExpenses].sort((a, b) => 
       new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -56,32 +57,33 @@ const Dashboard = () => {
     },
   });
 
-// --- 4. HANDLE SUBMISSION & REFRESH ---
-const createExpenseMutation = useMutation({
-  mutationFn: async (data: InsertExpense) => {
-    // Ensure the date is sent as an ISO string so the database understands it
-    const formattedData = {
-      ...data,
-      date: data.date ? new Date(data.date).toISOString() : new Date().toISOString()
-    };
-    const res = await apiRequest("POST", "/api/expenses", formattedData);
-    return res.json();
-  },
-  onSuccess: () => {
-    // Tells the app the database has updated
-    queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
-    form.reset({
-      title: "",
-      amount: 0,
-      date: new Date()
-    });
-    setIsAddOpen(false);
-  },
-  onError: (error) => {
-    console.error("Failed to save transaction:", error);
-    // You can add a toast notification here to see the exact error
-  }
-});
+  // --- 4. HANDLE SUBMISSION & REFRESH ---
+  const createExpenseMutation = useMutation({
+    mutationFn: async (data: InsertExpense) => {
+      // Format date for SQL compatibility
+      const formattedData = {
+        ...data,
+        date: data.date ? new Date(data.date).toISOString() : new Date().toISOString()
+      };
+      const res = await apiRequest("POST", "/api/expenses", formattedData);
+      return res.json();
+    },
+    onSuccess: () => {
+      // Force refresh of the list
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
+      
+      // Reset form and close modal
+      form.reset({
+        title: "",
+        amount: 0,
+        date: new Date()
+      });
+      setIsAddOpen(false);
+    },
+    onError: (error) => {
+      console.error("Failed to save transaction:", error);
+    }
+  });
 
   // --- 5. STATS & CHART ---
   const totalExpenses = expenses.reduce((acc, curr) => acc + curr.amount, 0);
