@@ -1,48 +1,40 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { GoogleGenAI } from "@google/genai"; // New unified 2026 SDK
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-
-// FIX: Satisfy TypeScript with a fallback string
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
-// FIX: Extend User type so TS recognizes 'req.user.id'
-declare global {
-  namespace Express {
-    interface User { id: number; username: string; }
-  }
-}
+import { insertExpenseSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  setupAuth(app); // Restores your login logic
+  // 1. Setup Authentication routes first
+  setupAuth(app);
 
-  // AI ROUTE: This is what your "Ask Gemini" button talks to
-  app.post("/api/ai/process", async (req, res) => {
-    try {
-      const { text } = req.body;
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview", // CORRECT 2026 MODEL ID
-        contents: [{ role: "user", parts: [{ text: `
-          Analyze: "${text}". 
-          Return ONLY JSON: {"amount": number, "category": "string", "merchant": "string"}
-        `}]}],
-        config: { responseMimeType: "application/json" }
-      });
-
-      // FIX: Access result.text directly (fixes 'property response does not exist')
-      res.json(JSON.parse(result.text)); 
-    } catch (error) {
-      console.error("AI Error:", error);
-      res.status(500).json({ error: "AI processing failed" });
-    }
-  });
-
-  // Your existing database route
+  // 2. GET: List all expenses (This was working)
   app.get("/api/expenses", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const expenses = await storage.getExpenses(req.user!.id);
+    
+    // Use the ID from the logged-in user
+    const userId = (req.user as any).id;
+    const expenses = await storage.getExpenses(userId);
     res.json(expenses);
+  });
+
+  // 3. POST: Save a new expense (This was MISSING or Broken)
+  app.post("/api/expenses", async (req, res) => {
+    // A. Check if user is logged in
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    // B. Validate the data coming from the frontend
+    const parsed = insertExpenseSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(parsed.error);
+    }
+
+    // C. Save to database using the logged-in user's ID
+    const userId = (req.user as any).id;
+    const expense = await storage.createExpense(userId, parsed.data);
+    
+    // D. Send back the saved item as JSON (Status 201 = Created)
+    res.status(201).json(expense);
   });
 
   const httpServer = createServer(app);

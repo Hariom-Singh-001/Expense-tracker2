@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Fixed import
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Expense, InsertExpense, insertExpenseSchema } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, TrendingDown, DollarSign, Sparkles, CreditCard, Loader2, LogOut } from "lucide-react";
+import { Plus, TrendingDown, DollarSign, Sparkles, CreditCard, Loader2, LogOut, RefreshCw } from "lucide-react";
 
 // Charts & Animation
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const Dashboard = () => {
   const { user, logoutMutation } = useAuth();
-  const queryClient = useQueryClient(); // The missing link for auto-refresh
+  const queryClient = useQueryClient();
   
   const [isAskOpen, setIsAskOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -32,13 +32,18 @@ const Dashboard = () => {
   const [isThinking, setIsThinking] = useState(false);
 
   // --- 1. FETCH DATA ---
-  const { data: rawExpenses = [], isLoading } = useQuery<Expense[]>({
+  const { data: rawExpenses = [], isLoading, refetch } = useQuery<Expense[]>({
     queryKey: ["/api/expenses"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/expenses");
       return res.json();
     },
   });
+
+  // Ensure fresh data on load
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
 
   // --- 2. SORTING (Newest First) ---
   const expenses = useMemo(() => {
@@ -47,7 +52,7 @@ const Dashboard = () => {
     );
   }, [rawExpenses]);
 
-  // --- 3. SETUP FORM ---
+  // --- 3. FORM SETUP ---
   const form = useForm<InsertExpense>({
     resolver: zodResolver(insertExpenseSchema),
     defaultValues: {
@@ -57,22 +62,48 @@ const Dashboard = () => {
     },
   });
 
-  // --- 4. HANDLE SUBMISSION & REFRESH ---
+  // --- 4. HANDLE SUBMISSION (SAFE PARSE FIX) ---
   const createExpenseMutation = useMutation({
     mutationFn: async (data: InsertExpense) => {
-      // Format date for SQL compatibility
+      // Format date for SQL
       const formattedData = {
         ...data,
         date: data.date ? new Date(data.date).toISOString() : new Date().toISOString()
       };
+      
       const res = await apiRequest("POST", "/api/expenses", formattedData);
-      return res.json();
+      
+      // A. Get the raw text response first to avoid crashing
+      const text = await res.text();
+      
+      // B. Check if it's actually HTML (Session Expired / Login Page)
+      if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+        throw new Error("Session expired. Please reload the page and log in again.");
+      }
+
+      // C. Safely parse it as JSON
+      try {
+        return JSON.parse(text);
+      } catch (err) {
+        // If it's just a plain text message, return it directly
+        return text; 
+      }
     },
-    onSuccess: () => {
-      // Force refresh of the list
+    onSuccess: (newTransaction) => {
+      // 1. Manually inject the new transaction into the list (Instant Update)
+      queryClient.setQueryData(["/api/expenses"], (oldData: Expense[] | undefined) => {
+        const currentList = oldData || [];
+        // Ensure newTransaction is a valid object before adding
+        if (typeof newTransaction === 'object' && newTransaction !== null) {
+            return [newTransaction, ...currentList];
+        }
+        return currentList;
+      });
+
+      // 2. Background refresh to stay in sync
       queryClient.invalidateQueries({ queryKey: ["/api/expenses"] });
       
-      // Reset form and close modal
+      // 3. Reset form and close modal
       form.reset({
         title: "",
         amount: 0,
@@ -82,6 +113,7 @@ const Dashboard = () => {
     },
     onError: (error) => {
       console.error("Failed to save transaction:", error);
+      alert(`Error: ${error.message}`);
     }
   });
 
@@ -119,6 +151,9 @@ const Dashboard = () => {
           <p className="text-muted-foreground mt-1">Overview of your financial health.</p>
         </div>
         <div className="flex gap-3">
+          <Button variant="outline" size="icon" onClick={() => refetch()} title="Force Refresh">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           <Button variant="outline" onClick={() => logoutMutation.mutate()}>
             <LogOut className="mr-2 h-4 w-4" /> Logout
           </Button>
@@ -255,6 +290,26 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="history">
+          <Card>
+            <CardHeader><CardTitle>Full Transaction History</CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {expenses.length === 0 ? <p>No transactions found.</p> : 
+                expenses.map((txn) => (
+                  <div key={txn.id} className="flex items-center justify-between border-b pb-2">
+                     <div>
+                       <p className="font-medium">{txn.title}</p>
+                       <p className="text-xs text-muted-foreground">{format(new Date(txn.date), 'yyyy-MM-dd HH:mm')}</p>
+                     </div>
+                     <span className="text-red-500 font-bold">-${txn.amount}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
