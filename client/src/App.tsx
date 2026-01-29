@@ -4,14 +4,16 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
-import Dashboard from "@/pages/dashboard"; // <--- Import the new file
+import Dashboard from "@/pages/dashboard";
+import About from "@/pages/about"; // <--- Importing the file we just made
 import { AuthProvider } from "@/hooks/use-auth";
-import { ProtectedRoute } from "./lib/protected-route"; // We will create this helper next!
+import { ProtectedRoute } from "./lib/protected-route";
 
 function Router() {
   return (
     <Switch>
       <ProtectedRoute path="/" component={Dashboard} />
+      <Route path="/about" component={About} /> {/* <--- The new route */}
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />
     </Switch>
