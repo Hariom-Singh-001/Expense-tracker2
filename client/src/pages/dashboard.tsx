@@ -158,7 +158,7 @@ const Dashboard = () => {
                     name="amount"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Amount (Rupees)</FormLabel>
+                        <FormLabel>Amount <span>&#8377;</span></FormLabel>
                         <FormControl>
                           <Input 
                             type="number" 
@@ -196,7 +196,7 @@ const Dashboard = () => {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-mono">Rupees{totalBalance.toFixed(2)}</div>
+                  <div className="text-2xl font-bold font-mono"><span>&#8377;</span>{totalBalance.toFixed(2)}</div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -208,7 +208,7 @@ const Dashboard = () => {
                   <TrendingDown className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-mono text-destructive">-Rupees{totalExpenses.toFixed(2)}</div>
+                  <div className="text-2xl font-bold font-mono text-destructive"><span>&#8377;</span>{totalExpenses.toFixed(2)}</div>
                 </CardContent>
               </Card>
             </motion.div>
