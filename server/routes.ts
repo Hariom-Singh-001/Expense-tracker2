@@ -80,7 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         config: { responseMimeType: "application/json" }
       });
 
-      res.json(JSON.parse(result.text)); 
+      res.json(JSON.parse(result.text || "{}"));
     } catch (error) {
       console.error("AI Error:", error);
       res.status(500).json({ error: "AI processing failed" });
