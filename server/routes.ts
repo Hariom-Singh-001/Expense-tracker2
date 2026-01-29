@@ -1,13 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { GoogleGenAI } from "@google/genai"; // New unified 2026 SDK
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { insertExpenseSchema } from "@shared/schema";
-import admin from "firebase-admin";
-import { createRequire } from "module"; //
+import admin from "firebase-admin"; //
+import { createRequire } from "module";
 
 // --- ES MODULE FIX: Support require for JSON files ---
-const require = createRequire(import.meta.url); //
+const require = createRequire(import.meta.url);
 
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
@@ -16,13 +17,13 @@ if (!admin.apps.length) {
   });
 }
 
-// --- TypeScript User Interface ---
+// FIX: Satisfy TypeScript with a fallback string
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+
+// FIX: Extend User type so TS recognizes 'req.user.id'
 declare global {
   namespace Express {
-    interface User {
-      id: number;
-      username: string;
-    }
+    interface User { id: number; username: string; }
   }
 }
 
@@ -32,7 +33,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // --- GOOGLE LOGIN ROUTE ---
   app.post("/api/login/google", async (req, res) => {
-    const { token } = req.body; //
+    const { token } = req.body;
 
     try {
       // 1. Verify the ID token from the frontend
@@ -48,7 +49,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!user) {
         // 3. Create user if they don't exist
-        // Using email as username and Firebase UID as placeholder password
         user = await storage.createUser({
           username: email,
           password: uid, 
@@ -67,11 +67,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI ROUTE: This is what your "Ask Gemini" button talks to
+  app.post("/api/ai/process", async (req, res) => {
+    try {
+      const { text } = req.body;
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview", // CORRECT 2026 MODEL ID
+        contents: [{ role: "user", parts: [{ text: `
+          Analyze: "${text}". 
+          Return ONLY JSON: {"amount": number, "category": "string", "merchant": "string"}
+        `}]}],
+        config: { responseMimeType: "application/json" }
+      });
+
+      res.json(JSON.parse(result.text)); 
+    } catch (error) {
+      console.error("AI Error:", error);
+      res.status(500).json({ error: "AI processing failed" });
+    }
+  });
+
   // GET: Fetch all expenses for the logged-in user
   app.get("/api/expenses", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     
-    const expenses = await storage.getExpenses(req.user.id);
+    const expenses = await storage.getExpenses(req.user.id); // Neon fetch
     res.json(expenses);
   });
 

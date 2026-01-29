@@ -1,3 +1,4 @@
+import { useToast } from "@/hooks/use-toast"; // Added this line!
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -27,10 +28,35 @@ import { cn } from "@/lib/utils";
 const Dashboard = () => {
   const { user, logoutMutation } = useAuth();
   const [isAskOpen, setIsAskOpen] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false); // State for Add Transaction modal
+  const [isAddOpen, setIsAddOpen] = useState(false); // Add this line!
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
+  const { toast } = useToast();
+
+  const handleAskGemini = async () => { //added new
+  if (!question.trim()) return;
+  setIsThinking(true);
+  try {
+    const res = await fetch("/api/ai/process", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: question }),
+    });
+
+    const data = await res.json();
+    
+    // ENSURE THESE KEYS MATCH THE AI PROMPT: amount, merchant, category
+    setAnswer(`Found: ₹${data.amount} for ${data.merchant} (${data.category})`);
+    
+  } catch (err) {
+    setAnswer("Sorry, I couldn't process that expense.");
+  } finally {
+    setIsThinking(false);
+  }
+};
+
+
 
   // --- 1. FETCH REAL DATA ---
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
@@ -81,16 +107,8 @@ const Dashboard = () => {
     };
   });
 
-  // Mock AI handler (kept for UI purposes)
-  const handleAskGemini = () => {
-    if (!question.trim()) return;
-    setIsThinking(true);
-    setAnswer(null);
-    setTimeout(() => {
-      setIsThinking(false);
-      setAnswer(`Based on your data, you spent $${totalExpenses} recently. Try cutting down on high-value items.`);
-    }, 2000);
-  };
+  
+  
 
   if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /></div>;
 
@@ -140,7 +158,7 @@ const Dashboard = () => {
                     name="amount"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Amount ($)</FormLabel>
+                        <FormLabel>Amount <span>&#8377;</span></FormLabel>
                         <FormControl>
                           <Input 
                             type="number" 
@@ -178,7 +196,7 @@ const Dashboard = () => {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-mono">${totalBalance.toFixed(2)}</div>
+                  <div className="text-2xl font-bold font-mono"><span>&#8377;</span>{totalBalance.toFixed(2)}</div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -190,7 +208,7 @@ const Dashboard = () => {
                   <TrendingDown className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold font-mono text-destructive">-${totalExpenses.toFixed(2)}</div>
+                  <div className="text-2xl font-bold font-mono text-destructive"><span>&#8377;</span>{totalExpenses.toFixed(2)}</div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -203,7 +221,7 @@ const Dashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-sm font-medium leading-relaxed">
-                    "Your spending is stable. Great job staying on track!"
+                    "WooHoo.. Your spending is stable. Great job staying on track!"
                   </div>
                 </CardContent>
               </Card>
@@ -271,21 +289,34 @@ const Dashboard = () => {
 
       {/* ASK GEMINI DIALOG (UI Only) */}
       <Dialog open={isAskOpen} onOpenChange={setIsAskOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Ask Gemini</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Textarea placeholder="How is my budget?" value={question} onChange={(e) => setQuestion(e.target.value)} />
-            <AnimatePresence>
-              {answer && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-primary/5 p-3 rounded-lg text-sm">{answer}</motion.div>}
-            </AnimatePresence>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleAskGemini} disabled={isThinking}>{isThinking ? "Thinking..." : "Ask"}</Button>
-          </DialogFooter>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <Textarea 
+              placeholder="How is my budget?"
+              value={question} 
+              onChange={(e) => setQuestion(e.target.value)} 
+              />
+              
+              {/* This AnimatePresence makes the AI answer appear smoothly */}
+              <AnimatePresence>
+                {answer && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-primary/5 p-3 rounded-lg text-sm">
+                    {answer}
+                    </motion.div>
+                  )}
+              </AnimatePresence>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleAskGemini} disabled={isThinking}>
+                {isThinking ? "Thinking..." : "Ask"}
+              </Button>
+            </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };
