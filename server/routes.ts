@@ -4,12 +4,44 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { insertExpenseSchema } from "@shared/schema";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// --- SMART MODEL SELECTOR ---
+// This function asks Google what models are available to YOU.
+async function getSmartModel(apiKey: string): Promise<string> {
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+    );
+    const data = await response.json();
+    
+    if (!data.models) {
+      console.warn("Could not list models. Defaulting to gemini-1.5-flash");
+      return "gemini-1.5-flash";
+    }
+
+    // Look for valid models in your list
+    const validModels = data.models.map((m: any) => m.name.replace("models/", ""));
+    console.log("Your Available Models:", validModels.join(", "));
+
+    // Priority List: Try to find the best one
+    if (validModels.includes("gemini-1.5-flash")) return "gemini-1.5-flash";
+    if (validModels.includes("gemini-1.5-pro")) return "gemini-1.5-pro";
+    if (validModels.includes("gemini-pro")) return "gemini-pro";
+    if (validModels.includes("gemini-1.0-pro")) return "gemini-1.0-pro";
+
+    // If none of our favorites exist, just take the first one that supports generating text
+    const fallback = validModels.find((m: string) => m.includes("gemini"));
+    return fallback || "gemini-1.5-flash";
+  } catch (error) {
+    console.error("Model Auto-Detect Failed:", error);
+    return "gemini-1.5-flash"; // Fallback
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
 
-  // --- EXISTING EXPENSE ROUTES ---
+  // --- STANDARD EXPENSE ROUTES ---
   app.get("/api/expenses", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const userId = (req.user as any).id;
@@ -26,52 +58,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(201).json(expense);
   });
 
-  // --- GEMINI AI ROUTE ---
+  // --- SMART AI ROUTE ---
   app.post("/api/chat", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     try {
       const { message } = req.body;
       const userId = (req.user as any).id;
-      
-      // 1. Get Context
+
+      // 1. Context Data
       const expenses = await storage.getExpenses(userId);
       const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
-      const recentHistory = expenses.slice(0, 5).map(e => 
-        `- ${e.title}: $${e.amount} on ${e.date}`
-      ).join("\n");
+      const recent = expenses.slice(0, 5).map(e => `${e.title}: $${e.amount}`).join(", ");
 
-      // 2. Setup AI
+      // 2. Check API Key
       const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Missing API Key in .env file");
+      if (!apiKey) return res.status(500).json({ message: "API Key is missing." });
+
+      // 3. AUTO-DETECT MODEL
+      const modelName = await getSmartModel(apiKey);
+      console.log(`Using Model: ${modelName}`);
+
+      // 4. CALL GOOGLE
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `You are a financial assistant. User Total Spent: $${total}. Recent: ${recent}. User asks: "${message}". Reply in 1 short sentence.`
+              }]
+            }]
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("Google API Error:", JSON.stringify(data, null, 2));
+        throw new Error(data.error?.message || "Google API Refused Connection");
       }
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      
-      // *** THE FIX: Reverted to 'gemini-pro' ***
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-
-      const prompt = `
-        You are a smart financial assistant.
-        User's Total Spending: $${total}
-        Recent Transactions:
-        ${recentHistory}
-
-        User Question: "${message}"
-
-        Answer specifically based on their data. Keep it helpful, encouraging, and under 50 words.
-      `;
-
-      // 3. Generate
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-      
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't generate an answer.";
       res.json({ message: text });
+
     } catch (error: any) {
-      console.error("Gemini Error:", error.message);
-      res.status(500).json({ message: "Gemini Error: " + error.message });
+      console.error("Server Error:", error.message);
+      res.status(500).json({ message: `Error: ${error.message}` });
     }
   });
 
