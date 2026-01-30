@@ -178,10 +178,10 @@ const Dashboard = () => {
         <div className="flex items-center justify-center gap-1 mb-2">
           <span>&copy; 2026 Expense Tracker. Built with</span>
           <Heart className="w-3 h-3 text-red-500 fill-red-500 animate-pulse" />
-          <span>for the GDG Project.</span>
+          
         </div>
         <p className="text-xs opacity-70">
-          Developed by Hariom Singh, Rabbi Rasspreet Kaur & Priyanshu Sharma
+          Developed by:- Rabbi Rasspreet Kaur, Hariom Singh & Priyanshu Sharma
         </p>
       </footer>
     </div>
