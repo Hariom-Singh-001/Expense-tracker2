@@ -84,11 +84,32 @@ const Dashboard = () => {
     return { date: format(date, 'MMM dd'), amount: dayAmount };
   });
 
-  const handleAskGemini = () => {
+  // --- REAL AI HANDLER (DEBUG MODE) ---
+  const handleAskGemini = async () => {
     if (!question.trim()) return;
     setIsThinking(true);
     setAnswer(null);
-    setTimeout(() => { setIsThinking(false); setAnswer(`Your current total spending is $${totalExpenses.toFixed(2)}.`); }, 2000);
+
+    try {
+      // 1. Send question
+      const res = await apiRequest("POST", "/api/chat", { message: question });
+      
+      // 2. Parse response safely
+      const data = await res.json();
+
+      // 3. Check for server errors
+      if (!res.ok) {
+        throw new Error(data.message || "Server Error");
+      }
+
+      setAnswer(data.message);
+    } catch (err: any) {
+      // 4. SHOW THE REAL ERROR
+      console.error("Gemini Error:", err);
+      setAnswer(`Error: ${err.message}`);
+    } finally {
+      setIsThinking(false);
+    }
   };
 
   if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /></div>;
@@ -150,17 +171,17 @@ const Dashboard = () => {
       </div>
 
       {/* ASK GEMINI DIALOG */}
-      <Dialog open={isAskOpen} onOpenChange={setIsAskOpen}><DialogContent><DialogHeader><DialogTitle>Ask Gemini</DialogTitle></DialogHeader><div className="grid gap-4 py-4"><Textarea placeholder="How is my budget?" value={question} onChange={(e) => setQuestion(e.target.value)} /><AnimatePresence>{answer && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-primary/5 p-3 rounded-lg text-sm">{answer}</motion.div>}</AnimatePresence></div><DialogFooter><Button onClick={handleAskGemini} disabled={isThinking}>{isThinking ? "Thinking..." : "Ask"}</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={isAskOpen} onOpenChange={setIsAskOpen}><DialogContent><DialogHeader><DialogTitle>Ask Gemini</DialogTitle></DialogHeader><div className="grid gap-4 py-4"><Textarea placeholder="How is my budget? Am I spending too much?" value={question} onChange={(e) => setQuestion(e.target.value)} /><AnimatePresence>{answer && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-primary/5 p-3 rounded-lg text-sm text-red-600 font-semibold border border-red-200">{answer}</motion.div>}</AnimatePresence></div><DialogFooter><Button onClick={handleAskGemini} disabled={isThinking}>{isThinking ? "Thinking..." : "Ask"}</Button></DialogFooter></DialogContent></Dialog>
     
-      {/* FOOTER SECTION */}
+      {/* FOOTER */}
       <footer className="border-t pt-6 text-center text-muted-foreground text-sm">
         <div className="flex items-center justify-center gap-1 mb-2">
           <span>&copy; 2026 Expense Tracker. Built with</span>
           <Heart className="w-3 h-3 text-red-500 fill-red-500 animate-pulse" />
-          
+          <span>for the GDG Project.</span>
         </div>
         <p className="text-xs opacity-70">
-          Developed by Rabbi Rasspreet Kaur, Hariom Singh & Priyanshu Sharma
+          Developed by Hariom Singh, Rabbi Rasspreet Kaur & Priyanshu Sharma
         </p>
       </footer>
     </div>
