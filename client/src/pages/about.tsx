@@ -119,7 +119,7 @@ export default function About() {
             <motion.section variants={item} className="space-y-6">
               <div className="flex items-center justify-center gap-3">
                 <Users className="w-6 h-6 text-primary" />
-                <h2 className="text-2xl font-bold text-center">Meet the Developers</h2>
+                <h2 className="text-2xl font-bold text-center">Meet the DEVELOPERS</h2>
               </div>
               
               <div className="grid sm:grid-cols-3 gap-6">
