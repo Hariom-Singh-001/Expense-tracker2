@@ -1,6 +1,6 @@
 # Expense-tracker2
 
-Video Tutorial:-`(https://youtu.be/h_8_IF43fF8)`
+Video Tutorial:- https://youtu.be/h_8_IF43fF8
 
 ## 🏃‍♂️ How to Run Locally
 
